@@ -229,28 +229,46 @@ if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use
 
     with col2:
         st.subheader("📈 인지기능 프로파일")
-        fig, ax = plt.subplots(figsize=(7, 8))
-        plot_df = df_res.iloc[::-1] # 아래서부터 그리기 위해 역순
+        
+        # [수정] figsize의 두 번째 숫자(8 -> 6)를 줄여서 높이를 낮췄습니다.
+        fig, ax = plt.subplots(figsize=(7, 6)) 
+        
+        plot_df = df_res.iloc[::-1] # 데이터 역순
         
         colors = ["#d62728" if s == "심한 저하" else "#ff7f0e" if s == "경도 저하" else "#4c78a8" for s in plot_df["판정"]]
-        bars = ax.barh(plot_df["검사 항목"], plot_df["Z-Score"], color=colors, height=0.6, edgecolor='gray', linewidth=0.5)
         
-        # 유동적 범위 설정 (0.5 단위 그리드 스냅)
+        # [수정] 막대 두께(height)를 0.7로 살짝 키워 더 꽉 차 보이게 조절했습니다.
+        bars = ax.barh(plot_df["검사 항목"], plot_df["Z-Score"], color=colors, height=0.7, edgecolor='gray', linewidth=0.5)
+        
+        # 유동적 범위 및 눈금 설정 (0.5 단위)
         z_min, z_max = plot_df["Z-Score"].min(), plot_df["Z-Score"].max()
-        v_min = min(-1.5, math.floor((z_min - 0.3) * 2) / 2)
-        v_max = max(1.0, math.ceil((z_max + 0.3) * 2) / 2)
+        v_min = min(-1.5, math.floor((z_min - 0.4) * 2) / 2) # 여유분 확보
+        v_max = max(1.0, math.ceil((z_max + 0.4) * 2) / 2)
         ax.set_xlim(v_min, v_max)
         ax.set_xticks(np.arange(v_min, v_max + 0.1, 0.5))
 
+        # 기준선
         ax.axvline(0, color='black', linewidth=1)
         ax.axvline(-1.0, color='orange', linestyle='--', linewidth=1)
         ax.axvline(-1.5, color='red', linestyle=':', linewidth=1)
         
+        # 숫자 표시 (짤림 방지를 위해 여백 정교화)
         for bar in bars:
             w = bar.get_width()
-            ax.text(w + (0.05 if w >= 0 else -0.05), bar.get_y() + bar.get_height()/2, f'{w:.2f}', 
-                    va='center', ha='left' if w >= 0 else 'right', fontsize=9, fontweight='bold')
+            ax.text(w + (0.05 if w >= 0 else -0.05), 
+                    bar.get_y() + bar.get_height()/2, 
+                    f'{w:.2f}', 
+                    va='center', 
+                    ha='left' if w >= 0 else 'right', 
+                    fontsize=9, fontweight='bold')
 
+        # [수정] 불필요한 위/오른쪽 테두리 제거 및 폰트 크기 조정
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.tick_params(axis='y', labelsize=10) # 항목 글자 크기
         ax.grid(axis='x', linestyle='-', alpha=0.3)
+        
+        # [수정] 여백 자동 조절 (꽉 차게)
         plt.tight_layout()
+        
         st.pyplot(fig)
