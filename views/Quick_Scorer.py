@@ -2,9 +2,12 @@ import streamlit as st
 import pandas as pd
 import os
 import math
+import altair as alt  # <-- 이 줄이 반드시 있어야 합니다!
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
-import numpy as np
+
+# (이하 기존 코드 동일...)
 
 # ==========================================
 # 폰트 설정: 서버(리눅스) 환경 대응 완결판
@@ -228,47 +231,66 @@ if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use
         st.dataframe(df_res, height=560, use_container_width=True, hide_index=True)
 
     with col2:
-        st.subheader("📈 인지기능 프로파일")
+        st.subheader("📈 인지기능 프로파일 (Z-Score)")
         
-        # [수정] figsize의 두 번째 숫자(8 -> 6)를 줄여서 높이를 낮췄습니다.
-        fig, ax = plt.subplots(figsize=(7, 6)) 
+        sort_order = df_res["검사 항목"].tolist()
         
-        plot_df = df_res.iloc[::-1] # 데이터 역순
+        # [1] 0.5 단위로 딱 떨어지게 그리드 범위 최적화
+        z_min = df_res["Z-Score"].min()
+        z_max = df_res["Z-Score"].max()
         
-        colors = ["#d62728" if s == "심한 저하" else "#ff7f0e" if s == "경도 저하" else "#4c78a8" for s in plot_df["판정"]]
+        # 글자 공간을 위해 데이터보다 0.5 정도 더 여유 있는 0.5 단위 지점 계산
+        view_min = min(-1.5, math.floor((z_min - 0.3) * 2) / 2)
+        view_max = max(1.0, math.ceil((z_max + 0.3) * 2) / 2)
         
-        # [수정] 막대 두께(height)를 0.7로 살짝 키워 더 꽉 차 보이게 조절했습니다.
-        bars = ax.barh(plot_df["검사 항목"], plot_df["Z-Score"], color=colors, height=0.7, edgecolor='gray', linewidth=0.5)
-        
-        # 유동적 범위 및 눈금 설정 (0.5 단위)
-        z_min, z_max = plot_df["Z-Score"].min(), plot_df["Z-Score"].max()
-        v_min = min(-1.5, math.floor((z_min - 0.4) * 2) / 2) # 여유분 확보
-        v_max = max(1.0, math.ceil((z_max + 0.4) * 2) / 2)
-        ax.set_xlim(v_min, v_max)
-        ax.set_xticks(np.arange(v_min, v_max + 0.1, 0.5))
+        def assign_color(status):
+            if status == "심한 저하": return "#d62728"
+            elif status == "경도 저하": return "#ff7f0e"
+            else: return "#4c78a8"
+            
+        df_res["색상"] = df_res["판정"].apply(assign_color)
 
-        # 기준선
-        ax.axvline(0, color='black', linewidth=1)
-        ax.axvline(-1.0, color='orange', linestyle='--', linewidth=1)
-        ax.axvline(-1.5, color='red', linestyle=':', linewidth=1)
-        
-        # 숫자 표시 (짤림 방지를 위해 여백 정교화)
-        for bar in bars:
-            w = bar.get_width()
-            ax.text(w + (0.05 if w >= 0 else -0.05), 
-                    bar.get_y() + bar.get_height()/2, 
-                    f'{w:.2f}', 
-                    va='center', 
-                    ha='left' if w >= 0 else 'right', 
-                    fontsize=9, fontweight='bold')
+        # [2] 차트 본체 생성
+        # y축과 x축의 눈금을 검정색으로 설정하여 흰 배경에서 잘 보이게 함
+        base = alt.Chart(df_res).encode(
+            y=alt.Y('검사 항목:N', sort=sort_order, title="", 
+                  axis=alt.Axis(labelFontSize=12, labelColor='black'))
+        )
 
-        # [수정] 불필요한 위/오른쪽 테두리 제거 및 폰트 크기 조정
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.tick_params(axis='y', labelsize=10) # 항목 글자 크기
-        ax.grid(axis='x', linestyle='-', alpha=0.3)
-        
-        # [수정] 여백 자동 조절 (꽉 차게)
-        plt.tight_layout()
-        
-        st.pyplot(fig)
+        bars = base.mark_bar(size=18).encode(
+            x=alt.X('Z-Score:Q', 
+                    scale=alt.Scale(domain=[view_min, view_max], nice=False), 
+                    title="Z-score",
+                    axis=alt.Axis(values=list(np.arange(view_min, view_max + 0.1, 0.5)), 
+                                 labelColor='black', titleColor='black', gridColor='lightgray')),
+            color=alt.Color('색상:N', scale=None)
+        )
+
+        # 막대 옆에 Z-Score 숫자 표시
+        text = base.mark_text(
+            align=alt.expr('datum.Z_Score >= 0 ? "left" : "right"'),
+            baseline='middle',
+            dx=alt.expr('datum.Z_Score >= 0 ? 7 : -7'), 
+            fontWeight='bold',
+            fontSize=11,
+            color='black'
+        ).encode(
+            x=alt.X('Z-Score:Q'),
+            text=alt.Text('Z-Score:Q', format='.2f')
+        )
+
+        # 기준선 레이어
+        rule0 = alt.Chart(pd.DataFrame({'z': [0]})).mark_rule(color='black', opacity=0.8).encode(x='z:Q')
+        rule1 = alt.Chart(pd.DataFrame({'z': [-1.0]})).mark_rule(color='orange', strokeDash=[5,5]).encode(x='z:Q')
+        rule2 = alt.Chart(pd.DataFrame({'z': [-1.5]})).mark_rule(color='red', strokeDash=[2,2]).encode(x='z:Q')
+
+        # [3] 디자인 테마 설정 (에러 원인이던 padding 20 제거 및 표준 설정)
+        chart = (bars + text + rule0 + rule1 + rule2).properties(
+            height=500,
+            background='white' # 하얀 배경 강제
+        ).configure_view(
+            stroke='black',    # 테두리 선 검정색으로 명확하게
+            strokeWidth=1
+        )
+
+        st.altair_chart(chart, use_container_width=True)
