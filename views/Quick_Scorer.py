@@ -2,23 +2,17 @@ import streamlit as st
 import pandas as pd
 import os
 import math
-import altair as alt  # <-- 이 줄이 반드시 있어야 합니다!
+import altair as alt
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
-
-# (이하 기존 코드 동일...)
 
 # ==========================================
 # 폰트 설정: 서버(리눅스) 환경 대응 완결판
 # ==========================================
 @st.cache_resource
 def set_korean_font():
-    # 1. 시스템에 설치된 폰트 목록 새로고침 (packages.txt 설치 직후 대응)
-    fm.fontManager.addfont('/usr/share/fonts/truetype/nanum/NanumGothic.ttf') # 나눔폰트 경로 직접 추가
-    
-    # 2. 폰트 이름 설정
-    # Streamlit Cloud(리눅스)는 NanumGothic, 윈도우는 Malgun Gothic
+    fm.fontManager.addfont('/usr/share/fonts/truetype/nanum/NanumGothic.ttf') 
     font_names = [f.name for f in fm.fontManager.ttflist]
     
     if 'NanumGothic' in font_names:
@@ -26,25 +20,39 @@ def set_korean_font():
     elif 'Malgun Gothic' in font_names:
         plt.rcParams['font.family'] = 'Malgun Gothic'
     
-    plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
+    plt.rcParams['axes.unicode_minus'] = False 
 
-# 폰트 설정 실행
 try:
     set_korean_font()
 except:
-    # 경로를 직접 못 찾을 경우를 대비한 일반적인 설정
     plt.rc('font', family='NanumGothic') 
-
-# ... (이후 load_excel_data 등 기존 함수들은 그대로 두시면 됩니다)
 
 # ==========================================
 # 🧠 [엔진] 규준표 데이터 로드 및 Z-Score 연산
 # ==========================================
 @st.cache_data
 def load_excel_data(sheet_name):
-    file_path = "CERAD_K_Norm_DB.xlsx"
-    if not os.path.exists(file_path):
+    # [핵심] 엑셀 파일이 어디 있든 알아서 찾아내는 스마트 탐색 로직
+    current_dir = os.path.dirname(os.path.abspath(__file__)) # 현재 파일(views) 경로
+    parent_dir = os.path.dirname(current_dir) # 상위 폴더 (app.py 있는 곳)
+    
+    # 1. 터미널 실행경로, 2. views 폴더 안, 3. app.py가 있는 상위 폴더 안 모두 뒤짐
+    candidates = [
+        "CERAD_K_Norm_DB.xlsx", 
+        os.path.join(current_dir, "CERAD_K_Norm_DB.xlsx"),
+        os.path.join(parent_dir, "CERAD_K_Norm_DB.xlsx")
+    ]
+    
+    file_path = None
+    for path in candidates:
+        if os.path.exists(path):
+            file_path = path
+            break
+            
+    if file_path is None:
+        st.error("⚠️ 엑셀 파일을 찾지 못했습니다! 'CERAD_K_Norm_DB.xlsx' 파일이 폴더에 있는지 확인해주세요.")
         return None
+        
     return pd.read_excel(file_path, sheet_name=sheet_name, header=1)
 
 def get_age_group_str(age):
@@ -55,26 +63,26 @@ def get_age_group_str(age):
     else: return "80-90"
 
 def get_general_edu_cols(edu):
-    if edu <= 3: return "0-3 M", "0-3 SD"
-    elif 4 <= edu <= 9: return "4-9 M", "4-9 SD"
-    elif 10 <= edu <= 12: return "10-12 M", "10-12 SD"
-    else: return ">=13 M", ">=13 SD"
+    if edu <= 3: return "0-3 M", "0-3 SD", "0-3 5%tile"
+    elif 4 <= edu <= 9: return "4-9 M", "4-9 SD", "4-9 5%tile"
+    elif 10 <= edu <= 12: return "10-12 M", "10-12 SD", "10-12 5%tile"
+    else: return ">=13 M", ">=13 SD", ">=13 5%tile"
 
 def get_tmta_edu_cols(edu):
-    if edu <= 3: return "0-3 M", "0-3 SD"
-    elif 4 <= edu <= 6: return "4-6 M", "4-6 SD"
-    elif 7 <= edu <= 9: return "7-9 M", "7-9 SD"
-    else: return ">=10 M", ">=10 SD"
+    if edu <= 3: return "0-3 M", "0-3 SD", "0-3 5%tile"
+    elif 4 <= edu <= 6: return "4-6 M", "4-6 SD", "4-6 5%tile"
+    elif 7 <= edu <= 9: return "7-9 M", "7-9 SD", "7-9 5%tile"
+    else: return ">=10 M", ">=10 SD", ">=10 5%tile"
 
 def get_tmtb_edu_cols(edu):
-    if edu <= 6: return "0-6 M", "0-6 SD"
-    elif 7 <= edu <= 9: return "7-9 M", "7-9 SD"
-    else: return ">=10 M", ">=10 SD"
+    if edu <= 6: return "0-6 M", "0-6 SD", "0-6 5%tile"
+    elif 7 <= edu <= 9: return "7-9 M", "7-9 SD", "7-9 5%tile"
+    else: return ">=10 M", ">=10 SD", ">=10 5%tile"
 
 def get_stroop_edu_cols(edu):
-    if edu <= 3: return "0-3 M", "0-3 SD"
-    elif 4 <= edu <= 9: return "4-9 M", "4-9 SD"
-    else: return ">=10 M", ">=10 SD"
+    if edu <= 3: return "0-3 M", "0-3 SD", "0-3 5%tile"
+    elif 4 <= edu <= 9: return "4-9 M", "4-9 SD", "4-9 5%tile"
+    else: return ">=10 M", ">=10 SD", ">=10 5%tile"
 
 def calc_z_score(test_name, raw_score, age, edu, gender):
     try:
@@ -87,21 +95,22 @@ def calc_z_score(test_name, raw_score, age, edu, gender):
             else: sheet_name = "80-90세_일반검사"
             
             df = load_excel_data(sheet_name)
-            if df is None: return 0.0
+            if df is None: return 0.0, "-"
             
             if "총점" in test_name:
                 filtered = df[(df['성별'] == gender) & (df['검사항목'] == '총점') & (df['세부항목'] == test_name)]
             else:
                 filtered = df[(df['성별'] == gender) & (df['검사항목'].str.contains(test_name, na=False, case=False))]
                 
-            if filtered.empty: return 0.0
+            if filtered.empty: return 0.0, "-"
             
-            m_col, sd_col = get_general_edu_cols(edu)
+            m_col, sd_col, p5_col = get_general_edu_cols(edu)
             mean = filtered[m_col].values[0]
             sd = filtered[sd_col].values[0]
+            p5 = filtered[p5_col].values[0]
             
-            if pd.isna(mean) or pd.isna(sd) or sd == 0: return 0.0
-            return round((raw_score - mean) / sd, 2)
+            if pd.isna(mean) or pd.isna(sd) or sd == 0: return 0.0, "-"
+            return round((raw_score - mean) / sd, 2), p5
             
         else:
             age_group = get_age_group_str(age)
@@ -110,29 +119,31 @@ def calc_z_score(test_name, raw_score, age, edu, gender):
             if test_name == "TMT_A":
                 df = load_excel_data("TMT_A")
                 filtered = df[(df['성별'] == gender) & (df['연령대'] == age_group)]
-                m_col, sd_col = get_tmta_edu_cols(edu)
+                m_col, sd_col, p5_col = get_tmta_edu_cols(edu)
                 reverse = True
             elif test_name == "TMT_B":
                 df = load_excel_data("TMT_B")
                 filtered = df[(df['성별'] == '공통') & (df['연령대'] == age_group)]
-                m_col, sd_col = get_tmtb_edu_cols(edu)
+                m_col, sd_col, p5_col = get_tmtb_edu_cols(edu)
                 reverse = True
             elif test_name in ["STR_W", "STR_C", "STR_CW"]:
                 df = load_excel_data("스트룹검사")
                 excel_test_name = "Stroop-Word" if test_name == "STR_W" else "Stroop-Color" if test_name == "STR_C" else "Stroop-Color-Word"
                 filtered = df[(df['성별'] == gender) & (df['연령대'] == age_group) & (df['검사항목'] == excel_test_name)]
-                m_col, sd_col = get_stroop_edu_cols(edu)
+                m_col, sd_col, p5_col = get_stroop_edu_cols(edu)
                 
-            if filtered is None or filtered.empty: return 0.0
+            if filtered is None or filtered.empty: return 0.0, "-"
             mean = filtered[m_col].values[0]
             sd = filtered[sd_col].values[0]
+            p5 = filtered[p5_col].values[0]
             
-            if pd.isna(mean) or pd.isna(sd) or sd == 0: return 0.0
+            if pd.isna(mean) or pd.isna(sd) or sd == 0: return 0.0, "-"
             z = (raw_score - mean) / sd
-            return round(-z if reverse else z, 2)
+            return round(-z if reverse else z, 2), p5
             
     except Exception as e:
-        return 0.0
+        st.error(f"⚠️ {test_name} 연산 오류: {e}")
+        return 0.0, "-"
 
 # ==========================================
 # 🖥️ UI 구성
@@ -188,15 +199,9 @@ with tab2:
 st.markdown("---")
 
 # ==========================================
-# 📊 3. 결과 연산 및 시각화 (Matplotlib 복구)
+# 📊 3. 결과 연산 및 시각화
 # ==========================================
 if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use_container_width=True):
-    # 한글 폰트 설정 (서버 환경 대응)
-    font_names = [f.name for f in fm.fontManager.ttflist]
-    if 'NanumGothic' in font_names: plt.rcParams['font.family'] = 'NanumGothic'
-    elif 'Malgun Gothic' in font_names: plt.rcParams['font.family'] = 'Malgun Gothic'
-    plt.rcParams['axes.unicode_minus'] = False
-
     total_i = j1 + j2 + j4_sum + j5 + j6 + j7_sum
     total_ii = total_i + j8
 
@@ -205,23 +210,27 @@ if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use
         elif z <= -1.0: return "경도 저하"
         else: return "정상"
 
-    results = [
-        {"검사 항목": "CERAD-K 총점I", "원점수": total_i, "Z-Score": calc_z_score("총점 I", total_i, age, edu, gender)},
-        {"검사 항목": "CERAD-K 총점II", "원점수": total_ii, "Z-Score": calc_z_score("총점 II", total_ii, age, edu, gender)},
-        {"검사 항목": "언어유창성", "원점수": j1, "Z-Score": calc_z_score("언어유창성", j1, age, edu, gender)},
-        {"검사 항목": "보스톤 이름대기", "원점수": j2, "Z-Score": calc_z_score("보스톤이름대기", j2, age, edu, gender)},
-        {"검사 항목": "MMSE-KC", "원점수": j3, "Z-Score": calc_z_score("MMSE-KC", j3, age, edu, gender)},
-        {"검사 항목": "단어목록기억", "원점수": j4_sum, "Z-Score": calc_z_score("단어목록기억", j4_sum, age, edu, gender)},
-        {"검사 항목": "구성행동", "원점수": j5, "Z-Score": calc_z_score("구성행동", j5, age, edu, gender)},
-        {"검사 항목": "단어목록회상", "원점수": j6, "Z-Score": calc_z_score("단어목록회상", j6, age, edu, gender)},
-        {"검사 항목": "단어목록재인", "원점수": j7_sum, "Z-Score": calc_z_score("단어목록재인", j7_sum, age, edu, gender)},
-        {"검사 항목": "구성회상", "원점수": j8, "Z-Score": calc_z_score("구성회상", j8, age, edu, gender)},
-        {"검사 항목": "TMT-A", "원점수": tmt_a, "Z-Score": calc_z_score("TMT_A", tmt_a, age, edu, gender)},
-        {"검사 항목": "TMT-B", "원점수": tmt_b, "Z-Score": calc_z_score("TMT_B", tmt_b, age, edu, gender)},
-        {"검사 항목": "Stroop-W", "원점수": s_w, "Z-Score": calc_z_score("STR_W", s_w, age, edu, gender)},
-        {"검사 항목": "Stroop-C", "원점수": s_c, "Z-Score": calc_z_score("STR_C", s_c, age, edu, gender)},
-        {"검사 항목": "Stroop-CW", "원점수": s_cw, "Z-Score": calc_z_score("STR_CW", s_cw, age, edu, gender)}
+    tests = [
+        ("CERAD-K 총점I", total_i, "총점 I"), ("CERAD-K 총점II", total_ii, "총점 II"),
+        ("언어유창성", j1, "언어유창성"), ("보스톤 이름대기", j2, "보스톤이름대기"),
+        ("MMSE-KC", j3, "MMSE-KC"), ("단어목록기억", j4_sum, "단어목록기억"),
+        ("구성행동", j5, "구성행동"), ("단어목록회상", j6, "단어목록회상"),
+        ("단어목록재인", j7_sum, "단어목록재인"), ("구성회상", j8, "구성회상"),
+        ("TMT-A", tmt_a, "TMT_A"), ("TMT-B", tmt_b, "TMT_B"),
+        ("Stroop-W", s_w, "STR_W"), ("Stroop-C", s_c, "STR_C"),
+        ("Stroop-CW", s_cw, "STR_CW")
     ]
+
+    results = []
+    for kor_name, raw, eng_name in tests:
+        z_val, p5_val = calc_z_score(eng_name, raw, age, edu, gender)
+        results.append({
+            "검사 항목": kor_name,
+            "원점수": raw,
+            "5%ile": p5_val,
+            "Z-Score": z_val
+        })
+
     df_res = pd.DataFrame(results)
     df_res["판정"] = df_res["Z-Score"].apply(get_status)
 
@@ -235,11 +244,9 @@ if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use
         
         sort_order = df_res["검사 항목"].tolist()
         
-        # [1] 0.5 단위로 딱 떨어지게 그리드 범위 최적화
         z_min = df_res["Z-Score"].min()
         z_max = df_res["Z-Score"].max()
         
-        # 글자 공간을 위해 데이터보다 0.5 정도 더 여유 있는 0.5 단위 지점 계산
         view_min = min(-1.5, math.floor((z_min - 0.3) * 2) / 2)
         view_max = max(1.0, math.ceil((z_max + 0.3) * 2) / 2)
         
@@ -250,23 +257,25 @@ if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use
             
         df_res["색상"] = df_res["판정"].apply(assign_color)
 
-        # [2] 차트 본체 생성
-        # y축과 x축의 눈금을 검정색으로 설정하여 흰 배경에서 잘 보이게 함
         base = alt.Chart(df_res).encode(
-            y=alt.Y('검사 항목:N', sort=sort_order, title="", 
-                  axis=alt.Axis(labelFontSize=12, labelColor='black'))
+            y=alt.Y('검사 항목:N', sort=sort_order, title="", axis=alt.Axis(labelFontSize=12, labelColor='black'))
         )
 
         bars = base.mark_bar(size=18).encode(
             x=alt.X('Z-Score:Q', 
                     scale=alt.Scale(domain=[view_min, view_max], nice=False), 
                     title="Z-score",
-                    axis=alt.Axis(values=list(np.arange(view_min, view_max + 0.1, 0.5)), 
-                                 labelColor='black', titleColor='black', gridColor='lightgray')),
-            color=alt.Color('색상:N', scale=None)
+                    axis=alt.Axis(values=list(np.arange(view_min, view_max + 0.1, 0.5)), labelColor='black', titleColor='black', gridColor='lightgray')),
+            color=alt.Color('색상:N', scale=None, legend=None),
+            tooltip=[
+                alt.Tooltip('검사 항목:N'),
+                alt.Tooltip('원점수:Q'),
+                alt.Tooltip('5%ile 기준:N'), 
+                alt.Tooltip('Z-Score:Q', format='.2f'),
+                alt.Tooltip('판정:N')
+            ]
         )
 
-        # 막대 옆에 Z-Score 숫자 표시
         text = base.mark_text(
             align=alt.expr('datum.Z_Score >= 0 ? "left" : "right"'),
             baseline='middle',
@@ -279,17 +288,15 @@ if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use
             text=alt.Text('Z-Score:Q', format='.2f')
         )
 
-        # 기준선 레이어
         rule0 = alt.Chart(pd.DataFrame({'z': [0]})).mark_rule(color='black', opacity=0.8).encode(x='z:Q')
         rule1 = alt.Chart(pd.DataFrame({'z': [-1.0]})).mark_rule(color='orange', strokeDash=[5,5]).encode(x='z:Q')
         rule2 = alt.Chart(pd.DataFrame({'z': [-1.5]})).mark_rule(color='red', strokeDash=[2,2]).encode(x='z:Q')
 
-        # [3] 디자인 테마 설정 (에러 원인이던 padding 20 제거 및 표준 설정)
         chart = (bars + text + rule0 + rule1 + rule2).properties(
             height=500,
-            background='white' # 하얀 배경 강제
+            background='white'
         ).configure_view(
-            stroke='black',    # 테두리 선 검정색으로 명확하게
+            stroke='black',
             strokeWidth=1
         )
 
