@@ -7,6 +7,34 @@ import matplotlib.font_manager as fm
 import numpy as np
 
 # ==========================================
+# 폰트 설정: 서버(리눅스) 환경 대응 완결판
+# ==========================================
+@st.cache_resource
+def set_korean_font():
+    # 1. 시스템에 설치된 폰트 목록 새로고침 (packages.txt 설치 직후 대응)
+    fm.fontManager.addfont('/usr/share/fonts/truetype/nanum/NanumGothic.ttf') # 나눔폰트 경로 직접 추가
+    
+    # 2. 폰트 이름 설정
+    # Streamlit Cloud(리눅스)는 NanumGothic, 윈도우는 Malgun Gothic
+    font_names = [f.name for f in fm.fontManager.ttflist]
+    
+    if 'NanumGothic' in font_names:
+        plt.rcParams['font.family'] = 'NanumGothic'
+    elif 'Malgun Gothic' in font_names:
+        plt.rcParams['font.family'] = 'Malgun Gothic'
+    
+    plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
+
+# 폰트 설정 실행
+try:
+    set_korean_font()
+except:
+    # 경로를 직접 못 찾을 경우를 대비한 일반적인 설정
+    plt.rc('font', family='NanumGothic') 
+
+# ... (이후 load_excel_data 등 기존 함수들은 그대로 두시면 됩니다)
+
+# ==========================================
 # 🧠 [엔진] 규준표 데이터 로드 및 Z-Score 연산
 # ==========================================
 @st.cache_data
