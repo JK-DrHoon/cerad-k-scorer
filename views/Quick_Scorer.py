@@ -32,15 +32,15 @@ except:
 # ==========================================
 @st.cache_data
 def load_excel_data(sheet_name):
-    # [핵심] 엑셀 파일이 어디 있든 알아서 찾아내는 스마트 탐색 로직
-    current_dir = os.path.dirname(os.path.abspath(__file__)) # 현재 파일(views) 경로
-    parent_dir = os.path.dirname(current_dir) # 상위 폴더 (app.py 있는 곳)
+    current_dir = os.path.dirname(os.path.abspath(__file__)) 
+    parent_dir = os.path.dirname(current_dir) 
     
-    # 1. 터미널 실행경로, 2. views 폴더 안, 3. app.py가 있는 상위 폴더 안 모두 뒤짐
     candidates = [
         "CERAD_K_Norm_DB.xlsx", 
         os.path.join(current_dir, "CERAD_K_Norm_DB.xlsx"),
-        os.path.join(parent_dir, "CERAD_K_Norm_DB.xlsx")
+        os.path.join(parent_dir, "CERAD_K_Norm_DB.xlsx"),
+        "CERAD_K_Norm_DB_2.xlsx", 
+        os.path.join(current_dir, "CERAD_K_Norm_DB_2.xlsx")
     ]
     
     file_path = None
@@ -63,26 +63,26 @@ def get_age_group_str(age):
     else: return "80-90"
 
 def get_general_edu_cols(edu):
-    if edu <= 3: return "0-3 M", "0-3 SD", "0-3 5%tile"
-    elif 4 <= edu <= 9: return "4-9 M", "4-9 SD", "4-9 5%tile"
-    elif 10 <= edu <= 12: return "10-12 M", "10-12 SD", "10-12 5%tile"
-    else: return ">=13 M", ">=13 SD", ">=13 5%tile"
+    if edu <= 3: return "0-3 M", "0-3 SD"
+    elif 4 <= edu <= 9: return "4-9 M", "4-9 SD"
+    elif 10 <= edu <= 12: return "10-12 M", "10-12 SD"
+    else: return ">=13 M", ">=13 SD"
 
 def get_tmta_edu_cols(edu):
-    if edu <= 3: return "0-3 M", "0-3 SD", "0-3 5%tile"
-    elif 4 <= edu <= 6: return "4-6 M", "4-6 SD", "4-6 5%tile"
-    elif 7 <= edu <= 9: return "7-9 M", "7-9 SD", "7-9 5%tile"
-    else: return ">=10 M", ">=10 SD", ">=10 5%tile"
+    if edu <= 3: return "0-3 M", "0-3 SD"
+    elif 4 <= edu <= 6: return "4-6 M", "4-6 SD"
+    elif 7 <= edu <= 9: return "7-9 M", "7-9 SD"
+    else: return ">=10 M", ">=10 SD"
 
 def get_tmtb_edu_cols(edu):
-    if edu <= 6: return "0-6 M", "0-6 SD", "0-6 5%tile"
-    elif 7 <= edu <= 9: return "7-9 M", "7-9 SD", "7-9 5%tile"
-    else: return ">=10 M", ">=10 SD", ">=10 5%tile"
+    if edu <= 6: return "0-6 M", "0-6 SD"
+    elif 7 <= edu <= 9: return "7-9 M", "7-9 SD"
+    else: return ">=10 M", ">=10 SD"
 
 def get_stroop_edu_cols(edu):
-    if edu <= 3: return "0-3 M", "0-3 SD", "0-3 5%tile"
-    elif 4 <= edu <= 9: return "4-9 M", "4-9 SD", "4-9 5%tile"
-    else: return ">=10 M", ">=10 SD", ">=10 5%tile"
+    if edu <= 3: return "0-3 M", "0-3 SD"
+    elif 4 <= edu <= 9: return "4-9 M", "4-9 SD"
+    else: return ">=10 M", ">=10 SD"
 
 def calc_z_score(test_name, raw_score, age, edu, gender):
     try:
@@ -95,22 +95,21 @@ def calc_z_score(test_name, raw_score, age, edu, gender):
             else: sheet_name = "80-90세_일반검사"
             
             df = load_excel_data(sheet_name)
-            if df is None: return 0.0, "-"
+            if df is None: return 0.0
             
             if "총점" in test_name:
                 filtered = df[(df['성별'] == gender) & (df['검사항목'] == '총점') & (df['세부항목'] == test_name)]
             else:
                 filtered = df[(df['성별'] == gender) & (df['검사항목'].str.contains(test_name, na=False, case=False))]
                 
-            if filtered.empty: return 0.0, "-"
+            if filtered.empty: return 0.0
             
-            m_col, sd_col, p5_col = get_general_edu_cols(edu)
+            m_col, sd_col = get_general_edu_cols(edu)
             mean = filtered[m_col].values[0]
             sd = filtered[sd_col].values[0]
-            p5 = filtered[p5_col].values[0]
             
-            if pd.isna(mean) or pd.isna(sd) or sd == 0: return 0.0, "-"
-            return round((raw_score - mean) / sd, 2), p5
+            if pd.isna(mean) or pd.isna(sd) or sd == 0: return 0.0
+            return round((raw_score - mean) / sd, 2)
             
         else:
             age_group = get_age_group_str(age)
@@ -119,31 +118,39 @@ def calc_z_score(test_name, raw_score, age, edu, gender):
             if test_name == "TMT_A":
                 df = load_excel_data("TMT_A")
                 filtered = df[(df['성별'] == gender) & (df['연령대'] == age_group)]
-                m_col, sd_col, p5_col = get_tmta_edu_cols(edu)
+                m_col, sd_col = get_tmta_edu_cols(edu)
                 reverse = True
             elif test_name == "TMT_B":
                 df = load_excel_data("TMT_B")
                 filtered = df[(df['성별'] == '공통') & (df['연령대'] == age_group)]
-                m_col, sd_col, p5_col = get_tmtb_edu_cols(edu)
+                m_col, sd_col = get_tmtb_edu_cols(edu)
                 reverse = True
             elif test_name in ["STR_W", "STR_C", "STR_CW"]:
                 df = load_excel_data("스트룹검사")
                 excel_test_name = "Stroop-Word" if test_name == "STR_W" else "Stroop-Color" if test_name == "STR_C" else "Stroop-Color-Word"
                 filtered = df[(df['성별'] == gender) & (df['연령대'] == age_group) & (df['검사항목'] == excel_test_name)]
-                m_col, sd_col, p5_col = get_stroop_edu_cols(edu)
+                m_col, sd_col = get_stroop_edu_cols(edu)
                 
-            if filtered is None or filtered.empty: return 0.0, "-"
+            if filtered is None or filtered.empty: return 0.0
             mean = filtered[m_col].values[0]
             sd = filtered[sd_col].values[0]
-            p5 = filtered[p5_col].values[0]
             
-            if pd.isna(mean) or pd.isna(sd) or sd == 0: return 0.0, "-"
+            if pd.isna(mean) or pd.isna(sd) or sd == 0: return 0.0
             z = (raw_score - mean) / sd
-            return round(-z if reverse else z, 2), p5
+            return round(-z if reverse else z, 2)
             
     except Exception as e:
         st.error(f"⚠️ {test_name} 연산 오류: {e}")
-        return 0.0, "-"
+        return 0.0
+
+# [추가] Z-Score를 백분위수(Percentile)로 변환하는 함수
+def z_to_percentile(z):
+    try:
+        # 누적분포함수(CDF)를 이용하여 0~100 사이의 백분위수 계산
+        pct = 0.5 * (1 + math.erf(float(z) / math.sqrt(2))) * 100
+        return round(pct, 1) # 소수점 첫째 자리까지 표시
+    except:
+        return "-"
 
 # ==========================================
 # 🖥️ UI 구성
@@ -223,11 +230,13 @@ if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use
 
     results = []
     for kor_name, raw, eng_name in tests:
-        z_val, p5_val = calc_z_score(eng_name, raw, age, edu, gender)
+        z_val = calc_z_score(eng_name, raw, age, edu, gender)
+        pct_val = z_to_percentile(z_val) # [추가] 백분위수 계산
+        
         results.append({
             "검사 항목": kor_name,
             "원점수": raw,
-            "5%ile": p5_val,
+            "백분위수(%)": pct_val, # [수정] 5%ile 기준 대신 백분위수 출력
             "Z-Score": z_val
         })
 
@@ -270,7 +279,7 @@ if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use
             tooltip=[
                 alt.Tooltip('검사 항목:N'),
                 alt.Tooltip('원점수:Q'),
-                alt.Tooltip('5%ile 기준:N'), 
+                alt.Tooltip('백분위수(%):N'), # [수정] 툴팁에도 백분위수 표시
                 alt.Tooltip('Z-Score:Q', format='.2f'),
                 alt.Tooltip('판정:N')
             ]
