@@ -28,7 +28,7 @@ except:
     plt.rc('font', family='NanumGothic') 
 
 # ==========================================
-# 🧠 [엔진] 규준표 데이터 로드 및 Z-Score 연산
+# 🧠 [엔진] 규준표 데이터 로드 및 연산 로직
 # ==========================================
 @st.cache_data
 def load_excel_data(sheet_name):
@@ -143,14 +143,13 @@ def calc_z_score(test_name, raw_score, age, edu, gender):
         st.error(f"⚠️ {test_name} 연산 오류: {e}")
         return 0.0
 
-# [추가] Z-Score를 백분위수(Percentile)로 변환하는 함수
+# Z-Score를 백분위수(Percentile)로 변환하는 함수
 def z_to_percentile(z):
     try:
-        # 누적분포함수(CDF)를 이용하여 0~100 사이의 백분위수 계산
         pct = 0.5 * (1 + math.erf(float(z) / math.sqrt(2))) * 100
-        return round(pct, 1) # 소수점 첫째 자리까지 표시
+        return pct
     except:
-        return "-"
+        return None
 
 # ==========================================
 # 🖥️ UI 구성
@@ -218,25 +217,29 @@ if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use
         else: return "정상"
 
     tests = [
-        ("CERAD-K 총점I", total_i, "총점 I"), ("CERAD-K 총점II", total_ii, "총점 II"),
+        ("CERAD-K 총점 I", total_i, "총점 I"), ("CERAD-K 총점 II", total_ii, "총점 II"),
         ("언어유창성", j1, "언어유창성"), ("보스톤 이름대기", j2, "보스톤이름대기"),
         ("MMSE-KC", j3, "MMSE-KC"), ("단어목록기억", j4_sum, "단어목록기억"),
         ("구성행동", j5, "구성행동"), ("단어목록회상", j6, "단어목록회상"),
         ("단어목록재인", j7_sum, "단어목록재인"), ("구성회상", j8, "구성회상"),
         ("TMT-A", tmt_a, "TMT_A"), ("TMT-B", tmt_b, "TMT_B"),
-        ("Stroop-W", s_w, "STR_W"), ("Stroop-C", s_c, "STR_C"),
-        ("Stroop-CW", s_cw, "STR_CW")
+        ("Stroop-Word", s_w, "STR_W"), ("Stroop-Color", s_c, "STR_C"),
+        ("Stroop-C/W", s_cw, "STR_CW")
     ]
 
     results = []
     for kor_name, raw, eng_name in tests:
+        # Z-score 계산
         z_val = calc_z_score(eng_name, raw, age, edu, gender)
-        pct_val = z_to_percentile(z_val) # [추가] 백분위수 계산
         
+        # 백분위수 계산 후 문자열로 소수점 2자리 고정 포맷팅
+        pct_val = z_to_percentile(z_val)
+        pct_formatted = f"{pct_val:.2f}" if pct_val is not None else "-"
+
         results.append({
             "검사 항목": kor_name,
             "원점수": raw,
-            "백분위수(%)": pct_val, # [수정] 5%ile 기준 대신 백분위수 출력
+            "백분위수(%)": pct_formatted, # [수정] 소수점 둘째 자리 고정 적용
             "Z-Score": z_val
         })
 
@@ -279,7 +282,7 @@ if st.button("📊 실제 규준 적용하여 확인하기", type="primary", use
             tooltip=[
                 alt.Tooltip('검사 항목:N'),
                 alt.Tooltip('원점수:Q'),
-                alt.Tooltip('백분위수(%):N'), # [수정] 툴팁에도 백분위수 표시
+                alt.Tooltip('백분위수(%):N'), # [수정] 툴팁에도 동일하게 출력
                 alt.Tooltip('Z-Score:Q', format='.2f'),
                 alt.Tooltip('판정:N')
             ]
